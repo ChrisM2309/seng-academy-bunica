@@ -71,7 +71,7 @@
     const TOOLS=[{id:"mapa",title:"Mapa integrador",sub:"Arquitectura y trazabilidad"},{id:"matriz",title:"Matriz de riesgos",sub:"Explora el 5 × 5"},{id:"entrenador",title:"Entrenador de defensa",sub:"Preguntas abiertas y de elección"}];
     const esc=s=>String(s??"").replace(/[&<>\"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
     const fmt=s=>esc(s).replace(/\n/g,"<br>");
-    const tags=(items,style="")=>items.filter(Boolean).map(x=>{const id=String(x);return /^[PR]-\d{2}$/.test(id)?`<button type="button" class="tag entity-tag ${style}" data-preview-id="${id}" aria-haspopup="true" aria-expanded="false" title="Ver resumen de ${id}">${esc(id)}</button>`:`<span class="tag ${style}">${esc(id)}</span>`}).join("");
+    const tags=(items,style="")=>items.filter(Boolean).map(x=>{const id=String(x),control=id.match(/^CIS\s*-?\s*(\d{1,2})$/i);if(/^[PR]-\d{2}$/.test(id))return `<button type="button" class="tag entity-tag ${style}" data-preview-id="${id}" aria-haspopup="true" aria-expanded="false" title="Ver resumen de ${id}">${esc(id)}</button>`;if(control)return `<button type="button" class="tag entity-tag control-tag ${style}" data-preview-id="CIS-${control[1]}" aria-haspopup="true" aria-expanded="false" title="Ver resumen del control CIS ${control[1]}">${esc(id)}</button>`;return `<span class="tag ${style}">${esc(id)}</span>`}).join("");
     const src=(...items)=>`<div class="source-line"><b>Fuentes:</b> ${items.filter(Boolean).map(x=>SOURCE[x]?`<a href="fuentes_pdf/${SOURCE[x]}" target="_blank" rel="noopener" title="Abrir PDF local de ${esc(x)}">${esc(x)} ↗</a>`:`<span>${esc(x)}</span>`).join(" · ")}</div>`;
     const box=(title,content,kind="")=>`<section class="panel ${kind}"><h3>${title}</h3>${content}</section>`;
     const accordion=(title,body,open=false)=>`<details class="accordion" ${open?"open":""}><summary>${title}</summary><div class="accordion-body">${body}</div></details>`;
@@ -390,6 +390,12 @@
     function entityPreviewHTML(id,target){
       const context=previewContext(target);
       const contextHTML=`<p class="preview-context"><b>En este contexto:</b> ${esc(context)}</p>`;
+      if(id.startsWith("CIS-")){
+        const number=Number(id.slice(4));if(!CIS_NAMES[number])return "";
+        const developed=D.developedSafeguards.filter(x=>x.control===number),baseline=D.baseline.filter(x=>x.control===number);
+        const risks=D.risks.filter(r=>r.controls.includes(number)).map(r=>r.id);
+        return `${contextHTML}<strong>CIS ${number} · ${esc(CIS_NAMES[number])}</strong><p>${esc(CONTROL_ANALOGY[number]||"Familia de salvaguardas para reducir exposición y mejorar la capacidad de respuesta.")}</p><p class="preview-meta"><b>Por qué se usa:</b> ${esc(CONTROL_REASON[number]||"Forma parte del baseline de seguridad mapeado para BUNICA.")}</p><p class="preview-meta">${developed.length} salvaguardas desarrolladas en E.07 · ${baseline.length} mapeadas en E.08</p><p class="preview-meta">Riesgos vinculados en E.05: ${risks.map(esc).join(", ")||"no aparecen asociados directamente"}</p>`;
+      }
       if(id.startsWith("P-")){
         const p=D.processes.find(x=>x.id===id);if(!p)return "";
         const assets=D.assets.filter(a=>a.processes.includes(id));
