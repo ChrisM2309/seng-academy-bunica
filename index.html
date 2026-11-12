@@ -376,6 +376,8 @@
     function previewContext(target){
       const explicit=target?.dataset.previewContext;if(explicit)return explicit;
       if(target?.closest?.(".map-node"))return "En el mapa: seleccioná este nodo para actualizar el panel de relaciones de procesos, activos y riesgos.";
+      const flow=target?.closest?.(".flow");
+      if(flow)return `En la secuencia: ${flow.innerText.replace(/\s+/g," ").trim().slice(0,210)}`;
       const row=target?.closest?.("tr");
       if(row){
         const cells=[...row.cells].map(cell=>cell.innerText.replace(/\s+/g," ").trim()).filter(Boolean);
@@ -427,15 +429,22 @@
     function decorateEntityReferences(){
       const root=document.getElementById("view"),skip="button,a,[data-action],[data-preview-id],svg,script,style,textarea,select,option";
       if(!root)return;
-      const walker=document.createTreeWalker(root,NodeFilter.SHOW_TEXT,{acceptNode(node){return /\b(?:P|R)-\d{2}\b/.test(node.nodeValue)&&!node.parentElement?.closest(skip)?NodeFilter.FILTER_ACCEPT:NodeFilter.FILTER_REJECT;}});
+      const reference=/\b(?:P|R)-\d{2}\b|\bCIS\s+\d{1,2}(?:\s*(?:\/|,|\by\b)\s*\d{1,2})*/i;
+      const walker=document.createTreeWalker(root,NodeFilter.SHOW_TEXT,{acceptNode(node){return reference.test(node.nodeValue)&&!node.parentElement?.closest(skip)?NodeFilter.FILTER_ACCEPT:NodeFilter.FILTER_REJECT;}});
       const textNodes=[];while(walker.nextNode())textNodes.push(walker.currentNode);
-      const pattern=/\b(?:P|R)-\d{2}\b/g;
+      const pattern=/\b(?:P|R)-\d{2}\b|\bCIS\s+\d{1,2}(?:\s*(?:\/|,|\by\b)\s*\d{1,2})*/gi;
       for(const node of textNodes){
         const value=node.nodeValue,fragment=document.createDocumentFragment();let cursor=0,match;
         pattern.lastIndex=0;
         while((match=pattern.exec(value))){
           fragment.append(document.createTextNode(value.slice(cursor,match.index)));
-          const button=document.createElement("button");button.type="button";button.className="entity-inline";button.dataset.previewId=match[0];button.setAttribute("aria-haspopup","true");button.setAttribute("aria-expanded","false");button.title=`Ver resumen de ${match[0]}`;button.textContent=match[0];fragment.append(button);cursor=pattern.lastIndex;
+          const raw=match[0],isControl=/^CIS\s/i.test(raw),numbers=isControl?[...raw.matchAll(/\d{1,2}/g)]:[];
+          const addButton=(id,label)=>{const button=document.createElement("button");button.type="button";button.className="entity-inline";button.dataset.previewId=id;button.setAttribute("aria-haspopup","true");button.setAttribute("aria-expanded","false");button.title=isControl?`CIS ${id.slice(4)} · ${CIS_NAMES[Number(id.slice(4))]||"Ver control"}`:`Ver resumen de ${id}`;button.setAttribute("aria-label",button.title);button.textContent=label;fragment.append(button);};
+          if(isControl&&numbers.length&&numbers.every(item=>CIS_NAMES[Number(item[0])])){
+            let partStart=0;numbers.forEach(item=>{const start=item.index;fragment.append(document.createTextNode(raw.slice(partStart,start)));addButton(`CIS-${item[0]}`,item[0]);partStart=start+item[0].length;});fragment.append(document.createTextNode(raw.slice(partStart)));
+          }else if(isControl){fragment.append(document.createTextNode(raw));}
+          else addButton(raw,raw);
+          cursor=pattern.lastIndex;
         }
         fragment.append(document.createTextNode(value.slice(cursor)));node.parentNode.replaceChild(fragment,node);
       }
